@@ -11,49 +11,45 @@ app.use(express.json())
 
 
 //get all persons
-app.get('/api/persons',(request,response) => {
+app.get('/api/persons',(request,response,next) => {
     Person.find({}).then(people => {
         response.send(people)
     })
+    .catch(error => next(error))
 })
 
 //get information
 app.get('/info',(request,response) => {
-    const length = Person.length
-    response.send(`<div> Phonbook has info for ${length} people </div>
+    let length = 0
+    Person.count({}, function(err,length){
+        response.send(`<div> Phonebook has info for ${length} people </div>
     ${Date()}`)
+    })
 })
 
 //get specirfic person
-app.get('/api/persons/:id',(request,response) => {
+app.get('/api/persons/:id',(request,response,next) => {
     let id = request.params.id
     Person.findById(id).then(people => {
         response.send(people)
     })
-    .catch(error => {
-        console.log(error)
-        return (response.status(404).end())
-    })
+    .catch(error => next(error))
 })
 
 //delete function
-app.delete('/api/persons/:id',(request,response) => {
+app.delete('/api/persons/:id',(request,response,next) => {
     let id = request.params.id
-    Person.findById(id).then(people => {
-        response.send(people)
+    Person.findByIdAndRemove(id).then(people => {
+        response.status(204).end()
     })
-    .catch(error => {
-        console.log(error)
-        return (response.status(404).end())
-    })
+    .catch(error => next(error))
 })
 
 //POST function
-app.post('/api/persons',(request,response) => {
+app.post('/api/persons',(request,response,next) => {
     let body = request.body
-    let valid = Person.find({name: `${body.name}`})
 
-    if(!body.name || !body.number || !valid){
+    if(!body.name || !body.number){
         if(body.name === undefined){
             return response.status(400).json({
                 error: 'Name missing'
@@ -62,13 +58,8 @@ app.post('/api/persons',(request,response) => {
             return response.status(400).json({
                 error: 'Number missing'
             })
-        }else{
-            return response.status(400).json({
-                error: 'Name already exists'
-            })
         }
     }
-    
     const person = new Person({
         name: body.name,
         number: body.number,
@@ -77,7 +68,35 @@ app.post('/api/persons',(request,response) => {
     person.save().then(people => {
         response.json(people)
     })
+    .catch(error => next(error))
 })
+
+app.put('/api/persons/:id',(request,response,next) => {
+    const body = request.body
+
+    const person = {
+        name: body.name,
+        number: body.number,
+    }
+
+    Person.findByIdAndUpdate(request.params.id,person,{new:true}).then(res => {
+        response.send(res)
+    })
+    .catch(error => next(error))
+    
+})
+
+const errorHandler = (error, request, response, next) => {
+    console.error(error.message)
+  
+    if (error.name === 'CastError') {
+      return response.status(400).send({ error: 'malformatted id' })
+    } 
+  
+    next(error)
+  }
+  
+  app.use(errorHandler)
 
 
 //Server port listening
